@@ -1,0 +1,10 @@
+{
+    "C_Cpp.intelliSenseEngine": "Default",
+    "C_Cpp.autocomplete": "Default",
+    "C_Cpp.suggestSnippets": true,
+    "files.associations": {
+        "*.h": "c",
+        "fdf.h": "c"
+    }
+}
+

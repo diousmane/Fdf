@@ -1,0 +1,88 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   display.c                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: ousou <ousou@student.42.fr>                +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/10/26 23:59:00 by ousou             #+#    #+#             */
+/*   Updated: 2025/10/26 23:59:00 by ousou            ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
+#include "../includes/fdf.h"
+
+/*
+** Initialize MLX window and image
+*/
+void	init_mlx(t_window *win)
+{
+	win->mlx = mlx_init();
+	if (!win->mlx)
+	{
+		ft_putstr_fd("Error: MLX init failed\n", 2);
+		exit(1);
+	}
+	win->win = mlx_new_window(win->mlx, WIDTH, HEIGHT, TITLE);
+	if (!win->win)
+	{
+		ft_putstr_fd("Error: window creation failed\n", 2);
+		exit(1);
+	}
+	win->img = mlx_new_image(win->mlx, WIDTH, HEIGHT);
+	if (!win->img)
+	{
+		ft_putstr_fd("Error: image creation failed\n", 2);
+		exit(1);
+	}
+	win->img_data = mlx_get_data_addr(win->img, &win->bits_per_pixel,
+			&win->line_length, &win->endian);
+}
+
+/*
+** Calculate automatic zoom
+*/
+void	calc_zoom(t_window *win)
+{
+	int	zoom_x;
+	int	zoom_y;
+
+	zoom_x = (WIDTH * 0.8) / win->map->width;
+	zoom_y = (HEIGHT * 0.8) / win->map->height;
+	if (zoom_x < zoom_y)
+		win->zoom = zoom_x;
+	else
+		win->zoom = zoom_y;
+	if (win->zoom < 1)
+		win->zoom = 1;
+}
+
+/*
+** When a key is pressed
+*/
+int	key_press(int key, t_window *win)
+{
+	if (key == KEY_ESC)
+		close_win(win);
+	return (0);
+}
+
+/*
+** Close the program properly
+*/
+int	close_win(t_window *win)
+{
+	if (win->img)
+		mlx_destroy_image(win->mlx, win->img);
+	if (win->win)
+		mlx_destroy_window(win->mlx, win->win);
+	if (win->mlx)
+	{
+		mlx_destroy_display(win->mlx);
+		free(win->mlx);
+	}
+	if (win->map)
+		free_map(win->map);
+	free(win);
+	exit(0);
+}
