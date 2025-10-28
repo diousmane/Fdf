@@ -58,13 +58,9 @@ void	free_map(t_map *map)
 	{
 		if (map->z_matrix && map->z_matrix[i])
 			free(map->z_matrix[i]);
-		if (map->color_matrix && map->color_matrix[i])
-			free(map->color_matrix[i]);
 		i++;
 	}
 	if (map->z_matrix)
 		free(map->z_matrix);
-	if (map->color_matrix)
-		free(map->color_matrix);
 	free(map);
 }

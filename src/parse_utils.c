@@ -66,7 +66,7 @@ int	count_columns(char *line)
 /*
 ** Process one line
 */
-static void	process_line(char *line, t_map *map, int y)
+void	process_line(char *line, t_map *map, int y)
 {
 	char	**numbers;
 	int		x;
@@ -78,7 +78,6 @@ static void	process_line(char *line, t_map *map, int y)
 	while (x < map->width && numbers[x])
 	{
 		map->z_matrix[y][x] = ft_atoi(numbers[x]);
-		map->color_matrix[y][x] = COLOR_WHITE;
 		if (map->z_matrix[y][x] < map->z_min)
 			map->z_min = map->z_matrix[y][x];
 		if (map->z_matrix[y][x] > map->z_max)
@@ -92,24 +91,18 @@ static void	process_line(char *line, t_map *map, int y)
 /*
 ** Allocate matrices
 */
-static int	allocate_matrices(t_map *map)
+int	allocate_matrices(t_map *map)
 {
 	int	i;
 
 	map->z_matrix = malloc(sizeof(int *) * map->height);
 	if (!map->z_matrix)
 		return (0);
-	map->color_matrix = malloc(sizeof(int *) * map->height);
-	if (!map->color_matrix)
-		return (0);
 	i = 0;
 	while (i < map->height)
 	{
 		map->z_matrix[i] = malloc(sizeof(int) * map->width);
 		if (!map->z_matrix[i])
-			return (0);
-		map->color_matrix[i] = malloc(sizeof(int) * map->width);
-		if (!map->color_matrix[i])
 			return (0);
 		i++;
 	}

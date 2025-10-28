@@ -15,7 +15,7 @@
 /*
 ** Draw a horizontal line
 */
-static void	line_horizontal(t_window *win, t_point p1, t_point p2)
+void	line_horizontal(t_window *win, t_point p1, t_point p2)
 {
 	int	dx;
 	int	dy;
@@ -45,7 +45,7 @@ static void	line_horizontal(t_window *win, t_point p1, t_point p2)
 /*
 ** Draw a vertical line
 */
-static void	line_vertical(t_window *win, t_point p1, t_point p2)
+void	line_vertical(t_window *win, t_point p1, t_point p2)
 {
 	int	dx;
 	int	dy;
@@ -73,7 +73,7 @@ static void	line_vertical(t_window *win, t_point p1, t_point p2)
 }
 
 /*
-** Draw a line between two points
+** Draw a line between two points (white)
 */
 void	draw_line(t_window *win, t_point p1, t_point p2)
 {

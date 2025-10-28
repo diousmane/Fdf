@@ -30,7 +30,6 @@
 typedef struct s_map
 {
 	int		**z_matrix;
-	int		**color_matrix;
 	int		width;
 	int		height;
 	int		z_min;
@@ -69,6 +68,9 @@ int		parse_map(char *filename, t_map *map);
 int		count_lines(char *filename);
 int		count_columns(char *line);
 void	fill_map(char *filename, t_map *map);
+void	process_line(char *line, t_map *map, int y);
+int		allocate_matrices(t_map *map);
+void	draw_connections(t_window *win, t_point p1, int x, int y);
 
 /*
 ** Projection (fichier 2)
@@ -81,6 +83,8 @@ void	project_point(t_point *pt, int z, t_window *win);
 */
 void	draw_map(t_window *win);
 void	draw_line(t_window *win, t_point p1, t_point p2);
+void	line_horizontal(t_window *win, t_point p1, t_point p2);
+void	line_vertical(t_window *win, t_point p1, t_point p2);
 void	put_pixel(t_window *win, int x, int y, int color);
 
 /*

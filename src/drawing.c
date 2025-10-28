@@ -29,7 +29,7 @@ void	put_pixel(t_window *win, int x, int y, int color)
 /*
 ** Draw connections from one point
 */
-static void	draw_connections(t_window *win, t_point p1, int x, int y)
+void	draw_connections(t_window *win, t_point p1, int x, int y)
 {
 	t_point	p2;
 

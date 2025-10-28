@@ -69,6 +69,24 @@ static int	launch_fdf(char *filename)
 }
 
 /*
+** Check if file has .fdf extension
+*/
+static int	check_extension(char *filename)
+{
+	int	len;
+
+	len = ft_strlen(filename);
+	if (len < 4)
+		return (0);
+	if (filename[len - 4] == '.' && filename[len - 3] == 'f')
+	{
+		if (filename[len - 2] == 'd' && filename[len - 1] == 'f')
+			return (1);
+	}
+	return (0);
+}
+
+/*
 ** Main function
 */
 int	main(int argc, char **argv)
@@ -76,6 +94,11 @@ int	main(int argc, char **argv)
 	if (argc != 2)
 	{
 		ft_putstr_fd("Usage: ./fdf map_file.fdf\n", 2);
+		return (1);
+	}
+	if (!check_extension(argv[1]))
+	{
+		ft_putstr_fd("Error: file must have .fdf extension\n", 2);
 		return (1);
 	}
 	if (!launch_fdf(argv[1]))

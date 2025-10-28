@@ -44,15 +44,18 @@ void	init_mlx(t_window *win)
 */
 void	calc_zoom(t_window *win)
 {
+	int	max_dimension;
 	int	zoom_x;
 	int	zoom_y;
 
-	zoom_x = (WIDTH * 0.8) / win->map->width;
-	zoom_y = (HEIGHT * 0.8) / win->map->height;
+	max_dimension = win->map->width + win->map->height;
+	zoom_x = WIDTH / max_dimension;
+	zoom_y = HEIGHT / max_dimension;
 	if (zoom_x < zoom_y)
 		win->zoom = zoom_x;
 	else
 		win->zoom = zoom_y;
+	win->zoom = (win->zoom * 80) / 100;
 	if (win->zoom < 1)
 		win->zoom = 1;
 }

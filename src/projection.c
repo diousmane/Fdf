@@ -34,7 +34,7 @@ void	project_point(t_point *pt, int z, t_window *win)
 	old_x = pt->x * win->zoom;
 	old_y = pt->y * win->zoom;
 	pt->x = (old_x - old_y) * 0.866;
-	pt->y = (old_x + old_y) * 0.5 - z;
+	pt->y = (old_x + old_y) * 0.5 - z * win->zoom * 0.5;
 	pt->x += WIDTH / 2;
 	pt->y += HEIGHT / 2;
 }
