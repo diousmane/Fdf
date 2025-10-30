@@ -55,7 +55,7 @@ void	calc_zoom(t_window *win)
 		win->zoom = zoom_x;
 	else
 		win->zoom = zoom_y;
-	win->zoom = (win->zoom * 80) / 100;
+	win->zoom = (win->zoom * 100) / 100;
 	if (win->zoom < 1)
 		win->zoom = 1;
 }

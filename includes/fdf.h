@@ -18,11 +18,11 @@
 # include <math.h>
 # include <fcntl.h>
 
-# define WIDTH 1920
-# define HEIGHT 1080
-# define TITLE "FdF - ousou"
-# define KEY_ESC 65307
-# define COLOR_WHITE 0xFFFFFF
+# define WIDTH		1920
+# define HEIGHT		1080
+# define TITLE		"FdF - ousdial"
+# define KEY_ESC	65307
+# define COLOR_WHITE	0xFFFFFF
 
 /*
 ** Map structure
@@ -32,8 +32,6 @@ typedef struct s_map
 	int		**z_matrix;
 	int		width;
 	int		height;
-	int		z_min;
-	int		z_max;
 }	t_map;
 
 /*
@@ -53,51 +51,66 @@ typedef struct s_window
 }	t_window;
 
 /*
-** Screen point
+** Point structure
 */
 typedef struct s_point
 {
-	int	x;
-	int	y;
+	int		x;
+	int		y;
 }	t_point;
 
 /*
-** Parsing (fichier 1)
+** Parsing
 */
-int		parse_map(char *filename, t_map *map);
-int		count_lines(char *filename);
-int		count_columns(char *line);
-void	fill_map(char *filename, t_map *map);
-void	process_line(char *line, t_map *map, int y);
-int		allocate_matrices(t_map *map);
-void	draw_connections(t_window *win, t_point p1, int x, int y);
+int			parse_map(char *filename, t_map *map);
+int			count_lines(char *filename);
+int			count_columns(char *line);
+int			fill_map(char *filename, t_map *map);
+int			process_line(char *line, t_map *map, int y);
+int			allocate_matrices(t_map *map);
+void		draw_connections(t_window *win, t_point *p1, int x, int y);
 
 /*
-** Projection (fichier 2)
+** Parsing utils (validation)
 */
-int		abs_value(int n);
-void	project_point(t_point *pt, int z, t_window *win);
+int			is_valid_integer(char *str);
+void		free_split(char **arr);
+int			read_and_fill_rows(int fd, t_map *map);
 
 /*
-** Drawing (fichier 3)
+** Projection
 */
-void	draw_map(t_window *win);
-void	draw_line(t_window *win, t_point p1, t_point p2);
-void	line_horizontal(t_window *win, t_point p1, t_point p2);
-void	line_vertical(t_window *win, t_point p1, t_point p2);
-void	put_pixel(t_window *win, int x, int y, int color);
+int			abs_value(int n);
+void		project_point(t_point *pt, int z, t_window *win);
 
 /*
-** Display (fichier 4)
+** Drawing
 */
-void	init_mlx(t_window *win);
-void	calc_zoom(t_window *win);
-int		key_press(int key, t_window *win);
-int		close_win(t_window *win);
+void		draw_map(t_window *win);
+void		draw_line(t_window *win, t_point *p1, t_point *p2);
+void		line_horizontal(t_window *win, t_point *p1, t_point *p2);
+void		line_vertical(t_window *win, t_point *p1, t_point *p2);
+void		put_pixel(t_window *win, int x, int y, int color);
+
+/*
+** Display
+*/
+void		init_mlx(t_window *win);
+void		calc_zoom(t_window *win);
+int			key_press(int key, t_window *win);
+int			close_win(t_window *win);
 
 /*
 ** Utils
 */
-void	free_map(t_map *map);
+void		free_map(t_map *map);
+void		clear_zmatrix(t_map *map);
+int			get_width(char *filename, t_map *map);
+
+/*
+** Main
+*/
+int			check_extension(char *filename);
+int			start_fdf(char *filename);
 
 #endif

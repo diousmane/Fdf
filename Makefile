@@ -3,6 +3,7 @@ NAME = fdf
 SRC = src/main.c \
 	  src/parsing.c \
 	  src/parse_utils.c \
+	  src/parse_utils2.c \
 	  src/projection.c \
 	  src/drawing.c \
 	  src/draw_line.c \

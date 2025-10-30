@@ -29,7 +29,7 @@ void	put_pixel(t_window *win, int x, int y, int color)
 /*
 ** Draw connections from one point
 */
-void	draw_connections(t_window *win, t_point p1, int x, int y)
+void	draw_connections(t_window *win, t_point *p1, int x, int y)
 {
 	t_point	p2;
 
@@ -38,14 +38,14 @@ void	draw_connections(t_window *win, t_point p1, int x, int y)
 		p2.x = x + 1;
 		p2.y = y;
 		project_point(&p2, win->map->z_matrix[y][x + 1], win);
-		draw_line(win, p1, p2);
+		draw_line(win, p1, &p2);
 	}
 	if (y < win->map->height - 1)
 	{
 		p2.x = x;
 		p2.y = y + 1;
 		project_point(&p2, win->map->z_matrix[y + 1][x], win);
-		draw_line(win, p1, p2);
+		draw_line(win, p1, &p2);
 	}
 }
 
@@ -67,7 +67,7 @@ void	draw_map(t_window *win)
 			p1.x = x;
 			p1.y = y;
 			project_point(&p1, win->map->z_matrix[y][x], win);
-			draw_connections(win, p1, x, y);
+			draw_connections(win, &p1, x, y);
 			x++;
 		}
 		y++;

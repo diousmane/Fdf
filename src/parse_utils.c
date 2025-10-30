@@ -13,79 +13,62 @@
 #include "../includes/fdf.h"
 
 /*
-** Count lines in file
-*/
-int	count_lines(char *filename)
-{
-	int		fd;
-	int		nb_lines;
-	char	*line;
-
-	fd = open(filename, O_RDONLY);
-	if (fd < 0)
-		return (0);
-	nb_lines = 0;
-	line = get_next_line(fd);
-	while (line)
-	{
-		nb_lines++;
-		free(line);
-		line = get_next_line(fd);
-	}
-	close(fd);
-	return (nb_lines);
-}
-
-/*
 ** Count numbers on one line
 */
 int	count_columns(char *line)
 {
-	char	**words;
-	int		nb_columns;
+	int		count;
+	int		in_word;
 	int		i;
-	int		result;
 
-	words = ft_split(line, ' ');
-	if (!words)
+	if (!line)
 		return (0);
-	nb_columns = 0;
-	while (words[nb_columns])
-		nb_columns++;
-	result = nb_columns;
+	count = 0;
+	in_word = 0;
 	i = 0;
-	while (words[i])
+	while (line[i] && line[i] != '\n')
 	{
-		free(words[i]);
+		if (line[i] != ' ' && line[i] != '\t')
+		{
+			if (!in_word)
+			{
+				count++;
+				in_word = 1;
+			}
+		}
+		else
+			in_word = 0;
 		i++;
 	}
-	free(words);
-	return (result);
+	return (count);
 }
 
 /*
-** Process one line
+** Process one line: validate fields and fill row
 */
-void	process_line(char *line, t_map *map, int y)
+int	process_line(char *line, t_map *map, int y)
 {
 	char	**numbers;
 	int		x;
+	int		i;
 
 	numbers = ft_split(line, ' ');
 	if (!numbers)
-		return ;
+		return (0);
 	x = 0;
-	while (x < map->width && numbers[x])
+	i = 0;
+	while (numbers[i])
 	{
-		map->z_matrix[y][x] = ft_atoi(numbers[x]);
-		if (map->z_matrix[y][x] < map->z_min)
-			map->z_min = map->z_matrix[y][x];
-		if (map->z_matrix[y][x] > map->z_max)
-			map->z_max = map->z_matrix[y][x];
-		free(numbers[x]);
-		x++;
+		if (!is_valid_integer(numbers[i]))
+			return (free_split(numbers), 0);
+		if (x < map->width)
+			map->z_matrix[y][x++] = ft_atoi(numbers[i]);
+		i++;
 	}
-	free(numbers);
+	free_split(numbers);
+	while (x < map->width)
+		map->z_matrix[y][x++] = 0;
+	return (1);
 }
 
 /*
@@ -93,7 +76,7 @@ void	process_line(char *line, t_map *map, int y)
 */
 int	allocate_matrices(t_map *map)
 {
-	int	i;
+	int		i;
 
 	map->z_matrix = malloc(sizeof(int *) * map->height);
 	if (!map->z_matrix)
@@ -103,7 +86,13 @@ int	allocate_matrices(t_map *map)
 	{
 		map->z_matrix[i] = malloc(sizeof(int) * map->width);
 		if (!map->z_matrix[i])
+		{
+			while (--i >= 0)
+				free(map->z_matrix[i]);
+			free(map->z_matrix);
+			map->z_matrix = NULL;
 			return (0);
+		}
 		i++;
 	}
 	return (1);
@@ -112,29 +101,17 @@ int	allocate_matrices(t_map *map)
 /*
 ** Fill the map
 */
-void	fill_map(char *filename, t_map *map)
+int	fill_map(char *filename, t_map *map)
 {
 	int		fd;
-	char	*line;
-	int		y;
+	int		ok;
 
 	if (!allocate_matrices(map))
-		return ;
+		return (0);
 	fd = open(filename, O_RDONLY);
 	if (fd < 0)
-		return ;
-	map->z_min = 2147483647;
-	map->z_max = -2147483648;
-	y = 0;
-	line = get_next_line(fd);
-	while (line && y < map->height)
-	{
-		process_line(line, map, y);
-		free(line);
-		y++;
-		line = get_next_line(fd);
-	}
-	if (line)
-		free(line);
+		return (0);
+	ok = read_and_fill_rows(fd, map);
 	close(fd);
+	return (ok);
 }

@@ -13,77 +13,59 @@
 #include "../includes/fdf.h"
 
 /*
-** Launch the program
+** Init, draw and enter MLX loop
 */
-static int	launch_program(char *filename, t_window *win, t_map *map)
+int	init_and_run(t_window *win)
 {
-	if (!map)
-		return (0);
-	if (!parse_map(filename, map))
-	{
-		ft_putstr_fd("Error: reading file\n", 2);
-		free(map);
-		return (0);
-	}
-	win->map = map;
 	init_mlx(win);
 	calc_zoom(win);
 	draw_map(win);
-	return (1);
-}
-
-/*
-** Setup and run MLX loop
-*/
-static void	run_mlx(t_window *win)
-{
 	mlx_put_image_to_window(win->mlx, win->win, win->img, 0, 0);
 	mlx_hook(win->win, 2, 1L << 0, key_press, win);
 	mlx_hook(win->win, 17, 0, close_win, win);
 	mlx_loop(win->mlx);
+	return (1);
 }
 
 /*
-** Launch FdF program
+** Launch FdF program (alloc, parse, run)
 */
-static int	launch_fdf(char *filename)
+int	start_fdf(char *filename)
 {
 	t_window	*win;
 	t_map		*map;
 
 	map = malloc(sizeof(t_map));
 	win = malloc(sizeof(t_window));
-	if (!win)
+	if (!map || !win)
 	{
 		if (map)
 			free(map);
+		if (win)
+			free(win);
 		return (0);
 	}
-	if (!launch_program(filename, win, map))
+	if (!parse_map(filename, map))
 	{
+		free(map);
 		free(win);
 		return (0);
 	}
-	run_mlx(win);
-	return (1);
+	win->map = map;
+	return (init_and_run(win));
 }
 
 /*
 ** Check if file has .fdf extension
 */
-static int	check_extension(char *filename)
+int	check_extension(char *filename)
 {
 	int	len;
 
 	len = ft_strlen(filename);
 	if (len < 4)
 		return (0);
-	if (filename[len - 4] == '.' && filename[len - 3] == 'f')
-	{
-		if (filename[len - 2] == 'd' && filename[len - 1] == 'f')
-			return (1);
-	}
-	return (0);
+	return (ft_strncmp(filename + len - 4, ".fdf", 4) == 0);
 }
 
 /*
@@ -101,9 +83,8 @@ int	main(int argc, char **argv)
 		ft_putstr_fd("Error: file must have .fdf extension\n", 2);
 		return (1);
 	}
-	if (!launch_fdf(argv[1]))
+	if (!start_fdf(argv[1]))
 	{
-		ft_putstr_fd("Error\n", 2);
 		return (1);
 	}
 	return (0);
