@@ -44,31 +44,19 @@ int	count_columns(char *line)
 }
 
 /*
-** Process one line: validate fields and fill row
+** Free split array
 */
-int	process_line(char *line, t_map *map, int y)
+void	free_split(char **arr)
 {
-	char	**numbers;
-	int		x;
 	int		i;
 
-	numbers = ft_split(line, ' ');
-	if (!numbers)
-		return (0);
-	x = 0;
 	i = 0;
-	while (numbers[i])
+	while (arr[i])
 	{
-		if (!is_valid_integer(numbers[i]))
-			return (free_split(numbers), 0);
-		if (x < map->width)
-			map->z_matrix[y][x++] = ft_atoi(numbers[i]);
+		free(arr[i]);
 		i++;
 	}
-	free_split(numbers);
-	while (x < map->width)
-		map->z_matrix[y][x++] = 0;
-	return (1);
+	free(arr);
 }
 
 /*
@@ -99,19 +87,52 @@ int	allocate_matrices(t_map *map)
 }
 
 /*
-** Fill the map
+** Parse FDF value: extract number part (before comma) and convert to int
+** Handles: "123" -> 123, "0xff" -> 255, "123,0xff00" -> 123
 */
-int	fill_map(char *filename, t_map *map)
+int	parse_fdf_value(char *str)
 {
-	int		fd;
-	int		ok;
+	char	*value_str;
+	int		i;
+	int		result;
 
-	if (!allocate_matrices(map))
+	i = 0;
+	while (str[i] && str[i] != ',' && str[i] != '\n')
+		i++;
+	value_str = malloc(i + 1);
+	if (!value_str)
 		return (0);
-	fd = open(filename, O_RDONLY);
-	if (fd < 0)
-		return (0);
-	ok = read_and_fill_rows(fd, map);
-	close(fd);
-	return (ok);
+	i = 0;
+	while (str[i] && str[i] != ',' && str[i] != '\n')
+	{
+		value_str[i] = str[i];
+		i++;
+	}
+	value_str[i] = '\0';
+	result = ft_atoi_hex(value_str);
+	free(value_str);
+	return (result);
+}
+
+/*
+** Read and fill rows from file (validates rectangular shape)
+*/
+int	read_and_fill_rows(int fd, t_map *map)
+{
+	char	*line;
+	int		y;
+
+	y = 0;
+	line = get_next_line(fd);
+	while (line && y < map->height)
+	{
+		if (count_columns(line) != map->width)
+			return (free(line), 0);
+		if (!process_line(line, map, y))
+			return (free(line), 0);
+		free(line);
+		y++;
+		line = get_next_line(fd);
+	}
+	return (1);
 }

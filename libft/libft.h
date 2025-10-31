@@ -31,6 +31,9 @@ typedef struct s_list
 }	t_list;
 
 int		ft_atoi(const char *str);
+int		ft_atoi_hex(char *str);
+int		hex_to_int(char c);
+long	parse_hex_value(char *str, int *i);
 void	ft_bzero(void *s, size_t n);
 int		ft_isalnum(int c);
 int		ft_isalpha(int c);

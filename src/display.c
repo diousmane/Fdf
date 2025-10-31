@@ -55,7 +55,7 @@ void	calc_zoom(t_window *win)
 		win->zoom = zoom_x;
 	else
 		win->zoom = zoom_y;
-	win->zoom = (win->zoom * 100) / 100;
+	win->zoom = (win->zoom * 80) / 100;
 	if (win->zoom < 1)
 		win->zoom = 1;
 }
@@ -68,6 +68,27 @@ int	key_press(int key, t_window *win)
 	if (key == KEY_ESC)
 		close_win(win);
 	return (0);
+}
+
+/*
+** Free an entire map
+*/
+void	free_map(t_map *map)
+{
+	int	i;
+
+	if (!map)
+		return ;
+	i = 0;
+	while (i < map->height)
+	{
+		if (map->z_matrix && map->z_matrix[i])
+			free(map->z_matrix[i]);
+		i++;
+	}
+	if (map->z_matrix)
+		free(map->z_matrix);
+	free(map);
 }
 
 /*

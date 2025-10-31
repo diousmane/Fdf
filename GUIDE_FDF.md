@@ -23,6 +23,18 @@
 - **Chaque nombre** = altitude Z à la position (X, Y)
 - **Exemple** : ligne 1 (y=1), colonne 2 (x=2) → altitude = 5
 
+**Format des valeurs acceptées :**
+- **Nombres décimaux** : `123`, `-45`, `+10`, `0`
+- **Nombres hexadécimaux** : `0xFF`, `0xff`, `0xABC`, `0x10`, `-0xFF`
+- **Format avec virgule (accepté, couleur ignorée)** : Les valeurs avec virgule comme `123,0xff00` sont acceptées, mais seule la partie avant la virgule est utilisée (pas de support des couleurs dans la partie obligatoire)
+
+**Exemple avec hexadécimal :**
+```
+0 -5 10 0xFF -20
+3 -8 0x10 5 -25
+-2 7 0xABC -10 0x20
+```
+
 ---
 
 ## 📁 Structure du Projet
@@ -32,14 +44,15 @@ Fdf/
 ├── src/
 │   ├── main.c         ← Point d'entrée du programme
 │   ├── parsing.c      ← Parsing principal + libération mémoire
-│   ├── parse_utils.c  ← Helpers pour le parsing
+│   ├── parse_utils.c  ← Helpers pour le parsing (count, allocate, parse value)
+│   ├── parse_utils2.c ← Validation des nombres (décimal et hexadécimal)
 │   ├── projection.c   ← Transformation 3D → 2D (isométrique)
 │   ├── drawing.c      ← Dessin de la carte et connexions
 │   ├── draw_line.c    ← Algorithme de Bresenham pour les lignes
 │   └── display.c      ← Initialisation MLX, zoom, événements
 ├── includes/
 │   └── fdf.h          ← Toutes les déclarations et structures
-├── libft/             ← Bibliothèque personnelle (ft_split, ft_atoi, get_next_line...)
+├── libft/             ← Bibliothèque personnelle (ft_split, ft_atoi, ft_atoi_hex, get_next_line...)
 ├── minilibx-linux/    ← Bibliothèque graphique MLX
 ├── test_maps/         ← Fichiers .fdf de test
 ├── Makefile           ← Compilation
@@ -65,7 +78,6 @@ typedef struct s_map
 
 - **`z_matrix`** : source de vérité des altitudes. Toutes les étapes (zoom, projection, dessin) la consultent.
 - **`width`, `height`** : nécessaires pour itérer proprement et calculer le zoom automatique proportionnel à la taille de la carte.
-- **Pas de `z_min`/`z_max`** : retirés pour simplifier, non nécessaires sans couleurs/normalisation.
 
 **Stockage en mémoire :**
 
@@ -115,7 +127,7 @@ typedef struct s_point
 
 **Pourquoi cette structure ?**
 
-- Représente un point 2D après projection. Séparer le point écran Rentrées d'entrée (`z_matrix`) évite de modifier l'entrée (`z_matrix`) et clarifie les conversions.
+- Représente un point 2D après projection. Séparer le point écran des données d'entrée (`z_matrix`) évite de modifier l'entrée et clarifie les conversions.
 - Permet de passer facilement des points entre fonctions (projection, dessin de lignes).
 
 ---
@@ -204,7 +216,6 @@ int	main(int argc, char **argv)
 	// 3. Lancer le programme principal
 	if (!start_fdf(argv[1]))
 	{
-		ft_putstr_fd("Error\n", 2);
 		return (1);
 	}
 	
@@ -237,11 +248,6 @@ int	check_extension(char *filename)
 2. Vérifie qu'il y a au moins 4 caractères
 3. Compare les 4 derniers caractères avec ".fdf" en utilisant `ft_strncmp`
 
-**Pourquoi `filename + len - 4` ?**
-- `filename` est un pointeur sur le début de la chaîne
-- `filename + len - 4` pointe sur l'avant-dernier caractère (4 positions avant la fin)
-- Exemple : `"carte.fdf"` → `len = 9` → `filename + 5` pointe sur le "f" de ".fdf"
-
 #### `start_fdf(char *filename)`
 
 **Rôle** : Alloue les structures, parse le fichier, initialise et lance l'affichage.
@@ -272,7 +278,6 @@ int	start_fdf(char *filename)
 	// 3. Parser le fichier .fdf et remplir la structure map
 	if (!parse_map(filename, map))
 	{
-		ft_putstr_fd("Error: reading file\n", 2);
 		free(map);
 		free(win);
 		return (0);
@@ -320,11 +325,11 @@ int	init_and_run(t_window *win)
 
 ---
 
-### ÉTAPE 2 : Parsing (`parsing.c` + `parse_utils.c`)
+### ÉTAPE 2 : Parsing (`parsing.c` + `parse_utils.c` + `parse_utils2.c`)
 
 **Objectif** : Lire le fichier `.fdf` et remplir la matrice `z_matrix` avec les altitudes.
 
-**Stratégie** : Parsing en **plusieurs passes** (plus simple, plus robuste, conforme Norme).
+**Stratégie** : Parsing en **deux passes** avec validation de la forme rectangulaire.
 
 #### `parse_map(char *filename, t_map *map)` - Fonction principale
 
@@ -335,26 +340,38 @@ int	init_and_run(t_window *win)
 ```c
 int	parse_map(char *filename, t_map *map)
 {
-	// PASSE 1 : Compter le nombre de lignes (hauteur)
-	map->height = count_lines(filename);
-	if (map->height == 0)
+	int		fd;
+	int		ok;
+
+	// PASSE 1 : Obtenir les dimensions et valider la forme rectangulaire
+	if (!get_map_dimensions(filename, map))
 	{
-		ft_putstr_fd("Error: empty file\n", 2);
+		ft_putstr_fd("Error: invalid map\n", 2);
 		return (0);
 	}
 	
-	// PASSE 2 : Lire la première ligne pour compter les colonnes (largeur)
-	if (!get_width(filename, map))
+	// PASSE 2 : Allouer la matrice
+	if (!allocate_matrices(map))
+		return (0);
+	
+	// PASSE 3 : Ouvrir le fichier et remplir la matrice
+	fd = open(filename, O_RDONLY);
+	if (fd < 0)
 	{
-		ft_putstr_fd("Error: cannot open file\n", 2);
+		clear_zmatrix(map);
 		return (0);
 	}
 	
-	if (map->width == 0)
-		return (0);
+	// PASSE 4 : Lire toutes les lignes et remplir la matrice
+	ok = read_and_fill_rows(fd, map);
+	close(fd);
 	
-	// PASSE 3 : Allouer la matrice et remplir avec toutes les valeurs
-	fill_map(filename, map);
+	if (!ok)
+	{
+		ft_putstr_fd("Error: invalid map\n", 2);
+		clear_zmatrix(map);
+		return (0);
+	}
 	
 	return (1);
 }
@@ -362,135 +379,115 @@ int	parse_map(char *filename, t_map *map)
 
 **Pourquoi plusieurs passes ?**
 
-1. **Simplicité** : Chaque fonction a une responsabilité claire
+1. **Validation précoce** : On vérifie que toutes les lignes ont le même nombre de colonnes avant d'allouer
 2. **Norme 42** : Fonctions courtes (< 25 lignes), facilement testables
 3. **Robustesse** : On détecte les erreurs tôt (fichier vide, largeur incohérente)
 4. **Pas de realloc complexe** : On connaît la taille exacte avant d'allouer
 
-#### `count_lines(char *filename)` - Compter les lignes
+#### `get_map_dimensions(char *filename, t_map *map)` - Obtenir les dimensions et valider
 
-**Rôle** : Parcourir le fichier une première fois pour compter le nombre de lignes.
+**Rôle** : Parcourir le fichier pour compter les lignes, obtenir la largeur et valider que toutes les lignes ont la même largeur.
 
 **Algorithme** :
 
 ```c
-int	count_lines(char *filename)
+int	get_map_dimensions(char *filename, t_map *map)
 {
 	int		fd;
-	int		nb_lines;
 	char	*line;
+	int		first_width;
 
 	// 1. Ouvrir le fichier
 	fd = open(filename, O_RDONLY);
 	if (fd < 0)
-		return (0);  // Erreur : fichier inaccessible
+		return (0);
 	
-	// 2. Initialiser le compteur
-	nb_lines = 0;
+	// 2. Initialiser les compteurs
+	map->height = 0;
+	first_width = 0;
 	
-	// 3. Lire ligne par ligne avec get_next_line
+	// 3. Lire ligne par ligne
 	line = get_next_line(fd);
-	while (line)  // Tant qu'il y a des lignes
+	while (line)
 	{
-		nb_lines++;      // Compter la ligne
-		free(line);      // Libérer la mémoire (get_next_line alloue)
-		line = get_next_line(fd);  // Lire la ligne suivante
+		map->height++;
+		
+		// 4. Pour la première ligne, compter les colonnes (largeur)
+		if (map->height == 1)
+			first_width = count_columns(line);
+		// 5. Pour les autres lignes, vérifier que la largeur correspond
+		else if (!check_line_width(line, first_width))
+			return (free(line), close(fd), 0);
+		
+		free(line);
+		line = get_next_line(fd);
 	}
 	
-	// 4. Fermer le fichier
 	close(fd);
 	
-	return (nb_lines);  // Retourner le nombre total de lignes
+	// 6. Vérifier qu'on a au moins une ligne et une colonne
+	map->width = first_width;
+	return (map->height > 0 && map->width > 0);
 }
 ```
 
-**Complexité** : O(n) où n = nombre de lignes
+#### `check_line_width(char *line, int expected_width)`
 
-#### `get_width(char *filename, t_map *map)` - Compter les colonnes
-
-**Rôle** : Lire la première ligne pour déterminer la largeur (nombre de colonnes).
+**Rôle** : Vérifier qu'une ligne a exactement le nombre de colonnes attendu.
 
 **Logique** :
 
 ```c
-static int	get_width(char *filename, t_map *map)
+int	check_line_width(char *line, int expected_width)
 {
-	int		fd;
-	char	*first_line;
+	int	current_width;
 
-	// 1. Ouvrir le fichier
-	fd = open(filename, O_RDONLY);
-	if (fd < 0)
-		return (0);
-	
-	// 2. Lire uniquement la première ligne
-	first_line = get_next_line(fd);
-	if (!first_line)
-	{
-		close(fd);
-		return (0);
-	}
-	
-	// 3. Compter le nombre de nombres sur cette ligne
-	map->width = count_columns(first_line);
-	
-	// 4. Nettoyer
-	free(first_line);
-	close(fd);
-	
-	return (1);
+	current_width = count_columns(line);
+	return (current_width == expected_width);
 }
 ```
 
-**Pourquoi seulement la première ligne ?**
-
-- On suppose que toutes les lignes ont le même nombre de colonnes
-- On vérifie la cohérence implicitement lors du remplissage
-
 #### `count_columns(char *line)` - Compter les nombres sur une ligne
 
-**Rôle** : Découper une ligne en mots (séparés par des espaces) et compter combien il y en a.
+**Rôle** : Compter le nombre de nombres (séparés par des espaces) sur une ligne.
 
 **Algorithme** :
 
 ```c
 int	count_columns(char *line)
 {
-	char	**words;        // Tableau de chaînes
-	int		nb_columns;
+	int		count;
+	int		in_word;
 	int		i;
-	int		result;
 
-	// 1. Découper la ligne en mots avec ft_split (sépare par ' ')
-	words = ft_split(line, ' ');
-	if (!words)
+	if (!line)
 		return (0);
-	
-	// 2. Compter le nombre de mots
-	nb_columns = 0;
-	while (words[nb_columns])  // ft_split termine par NULL
-		nb_columns++;
-	
-	// 3. Sauvegarder le résultat
-	result = nb_columns;
-	
-	// 4. Libérer la mémoire allouée par ft_split
+	count = 0;
+	in_word = 0;
 	i = 0;
-	while (words[i])
+	while (line[i] && line[i] != '\n')
 	{
-		free(words[i]);  // Libérer chaque chaîne
+		// Si on rencontre un caractère non-espace
+		if (line[i] != ' ' && line[i] != '\t')
+		{
+			// Si on n'était pas déjà dans un mot, on commence un nouveau mot
+			if (!in_word)
+			{
+				count++;      // Nouveau nombre trouvé
+				in_word = 1;   // On est maintenant dans un mot
+			}
+		}
+		else
+			in_word = 0;  // On est sorti du mot
 		i++;
 	}
-	free(words);  // Libérer le tableau
-	
-	return (result);
+	return (count);
 }
 ```
 
 **Exemple** :
-- Ligne : `"0 5 5 0"`
-- Après `ft_split` : `["0", "5", "5", "0", NULL]`
-- Résultat : 4 colonnes
+- Ligne : `"0 5 0xFF 5 0"`
+- Comptage : `count = 5` (5 nombres séparés par des espaces)
 
 #### `allocate_matrices(t_map *map)` - Allouer la matrice 2D
 
@@ -506,7 +503,7 @@ int	allocate_matrices(t_map *map)
 	// 1. Allouer un tableau de pointeurs (une ligne = un pointeur)
 	map->z_matrix = malloc(sizeof(int *) * map->height);
 	if (!map->z_matrix)
-		return (0);  // Échec d'allocation
+		return (0);
 	
 	// 2. Pour chaque ligne, allouer un tableau d'entiers
 	i = 0;
@@ -514,11 +511,17 @@ int	allocate_matrices(t_map *map)
 	{
 		map->z_matrix[i] = malloc(sizeof(int) * map->width);
 		if (!map->z_matrix[i])
-			return (0);  // Échec : attention, il faudrait libérer ce qui a été alloué
+		{
+			// En cas d'échec, libérer ce qui a été alloué
+			while (--i >= 0)
+				free(map->z_matrix[i]);
+			free(map->z_matrix);
+			map->z_matrix = NULL;
+			return (0);
+		}
 		i++;
 	}
-	
-	return (1);  // Succès
+	return (1);
 }
 ```
 
@@ -531,88 +534,250 @@ z_matrix → [ptr0] → [int, int, int, ...]  (ligne 0)
             ...
 ```
 
-**Pourquoi un tableau de pointeurs plutôt qu'un tableau 2D contigu ?**
-
-- Flexibilité : chaque ligne peut avoir une taille différente (ici non, mais c'est plus flexible)
-- Compatibilité : plus facile à passer en paramètre
-- Accès : `z_matrix[y][x]` est naturel
-
-#### `fill_map(char *filename, t_map *map)` - Remplir la matrice
+#### `read_and_fill_rows(int fd, t_map *map)` - Lire et remplir la matrice
 
 **Rôle** : Lire toutes les lignes du fichier et remplir `z_matrix` avec les altitudes.
 
 **Logique** :
 
 ```c
-void	fill_map(char *filename, t_map *map)
+int	read_and_fill_rows(int fd, t_map *map)
 {
-	int		fd;
 	char	*line;
 	int		y;
 
-	// 1. Allouer la matrice (doit connaître height et width)
-	if (!allocate_matrices(map))
-		return ;
-	
-	// 2. Ouvrir le fichier
-	fd = open(filename, O_RDONLY);
-	if (fd < 0)
-		return ;
-	
-	// 3. Parcourir chaque ligne
 	y = 0;
 	line = get_next_line(fd);
 	while (line && y < map->height)
 	{
-		// 4. Traiter cette ligne : découper et convertir en entiers
-		process_line(line, map, y);
+		// 1. Vérifier que la largeur correspond toujours
+		if (count_columns(line) != map->width)
+			return (free(line), 0);
 		
-		// 5. Nettoyer et passer à la ligne suivante
+		// 2. Traiter cette ligne : découper, valider et convertir en entiers
+		if (!process_line(line, map, y))
+			return (free(line), 0);
+		
 		free(line);
 		y++;
 		line = get_next_line(fd);
 	}
-	
-	// 6. Fermer le fichier
-	close(fd);
+	return (1);
 }
 ```
 
 #### `process_line(char *line, t_map *map, int y)` - Traiter une ligne
 
-**Rôle** : Découper une ligne en nombres et les stocker dans `z_matrix[y]`.
+**Rôle** : Découper une ligne en nombres, valider chaque nombre, et les stocker dans `z_matrix[y]`.
 
 **Algorithme** :
 
 ```c
-void	process_line(char *line, t_map *map, int y)
+int	process_line(char *line, t_map *map, int y)
 {
-	char	**numbers;  // Tableau de chaînes (ex: ["10", "5", "0"])
+	char	**numbers;
 	int		x;
+	int		i;
 
-	// 1. Découper la ligne en mots
+	// 1. Découper la ligne en mots (séparés par ' ')
 	numbers = ft_split(line, ' ');
 	if (!numbers)
-		return ;
+		return (0);
 	
-	// 2. Pour chaque mot, convertir en entier et stocker
 	x = 0;
-	while (x < map->width && numbers[x])
+	i = 0;
+	
+	// 2. Pour chaque nombre trouvé
+	while (numbers[i])
 	{
-		map->z_matrix[y][x] = ft_atoi(numbers[x]);  // "10" → 10
-		free(numbers[x]);  // Libérer chaque chaîne
-		x++;
+		// 3. Valider que c'est un entier valide (décimal ou hexadécimal)
+		if (!is_valid_integer(numbers[i]))
+			return (free_split(numbers), 0);
+		
+		// 4. Si on n'a pas dépassé la largeur, convertir et stocker
+		if (x < map->width)
+			map->z_matrix[y][x++] = parse_fdf_value(numbers[i]);
+		i++;
 	}
 	
-	// 3. Libérer le tableau
-	free(numbers);
+	// 5. Libérer le tableau de chaînes
+	free_split(numbers);
+	
+	// 6. Remplir les colonnes manquantes avec 0 (si nécessaire)
+	while (x < map->width)
+		map->z_matrix[y][x++] = 0;
+	
+	return (1);
 }
 ```
 
 **Exemple** :
-- Ligne : `"0 5 5 0"`
-- Après `ft_split` : `["0", "5", "5", "0"]`
-- Après `ft_atoi` : `z_matrix[y][0] = 0`, `z_matrix[y][1] = 5`, etc.
+- Ligne : `"0 5 0xFF 5 0"`
+- Après `ft_split` : `["0", "5", "0xFF", "5", "0"]`
+- Après validation et conversion : `z_matrix[y][0] = 0`, `z_matrix[y][1] = 5`, `z_matrix[y][2] = 255`, etc.
+
+#### `is_valid_integer(char *str)` - Valider un nombre
+
+**Rôle** : Vérifier qu'une chaîne représente un nombre valide (décimal ou hexadécimal).
+
+**Logique** :
+
+```c
+int	is_valid_integer(char *str)
+{
+	int		i;
+	int		is_hex;
+
+	i = 0;
+	// 1. Autoriser un signe +/- au début
+	if (str[i] == '+' || str[i] == '-')
+		i++;
+	
+	// 2. Vérifier qu'il y a au moins un caractère après le signe
+	if (!str[i])
+		return (0);
+	
+	// 3. Détecter si c'est un nombre hexadécimal (commence par "0x" ou "0X")
+	is_hex = 0;
+	if ((str[i] == '0' && (str[i + 1] == 'x' || str[i + 1] == 'X'))
+		&& str[i + 2])
+	{
+		is_hex = 1;
+		i += 2;  // Passer "0x"
+	}
+	
+	// 4. Valider les chiffres (décimaux ou hexadécimaux)
+	if (!validate_value_digits(str, &i, is_hex))
+		return (0);
+	
+	// 5. La virgule est acceptée mais la partie après est ignorée
+	// (validate_value_digits s'arrête à la virgule, pas de support des couleurs)
+	
+	return (1);
+}
+```
+
+**Exemples valides** :
+- `"123"` → ✅ (décimal)
+- `"-45"` → ✅ (décimal négatif)
+- `"0xFF"` → ✅ (hexadécimal)
+- `"0xABC"` → ✅ (hexadécimal)
+- `"-0xFF"` → ✅ (hexadécimal négatif)
+
+**Exemples invalides** :
+- `"12.5"` → ❌ (floats non supportés)
+- `"0x"` → ❌ (pas de chiffres après 0x)
+- `"abc"` → ❌ (pas de préfixe 0x)
+
+**Exemples avec virgule (acceptés, partie couleur ignorée)** :
+- `"123,0xff"` → ✅ (valide comme `123`, partie couleur ignorée)
+- `"0xFF,0x00FF00"` → ✅ (valide comme `0xFF` = 255, partie couleur ignorée)
+
+#### `is_hex_digit(char c)` - Vérifier un caractère hexadécimal
+
+**Rôle** : Vérifier qu'un caractère est un chiffre hexadécimal valide.
+
+```c
+int	is_hex_digit(char c)
+{
+	if (c >= '0' && c <= '9')
+		return (1);
+	if (c >= 'a' && c <= 'f')
+		return (1);
+	if (c >= 'A' && c <= 'F')
+		return (1);
+	return (0);
+}
+```
+
+#### `validate_value_digits(char *str, int *i, int is_hex)` - Valider les chiffres
+
+**Rôle** : Valider que tous les caractères suivants sont des chiffres valides (décimaux ou hexadécimaux).
+
+```c
+int	validate_value_digits(char *str, int *i, int is_hex)
+{
+	while (str[*i] && str[*i] != ',' && str[*i] != ' ' 
+		&& str[*i] != '\t' && str[*i] != '\n')
+	{
+		if (is_hex && !is_hex_digit(str[*i]))
+			return (0);
+		if (!is_hex && (str[*i] < '0' || str[*i] > '9'))
+			return (0);
+		(*i)++;
+	}
+	return (1);
+}
+```
+
+#### `parse_fdf_value(char *str)` - Convertir une valeur FdF en entier
+
+**Rôle** : Extraire la partie numérique (avant virgule si présente) et la convertir en entier.
+
+**Logique** :
+
+```c
+int	parse_fdf_value(char *str)
+{
+	char	*value_str;
+	int		i;
+	int		result;
+
+	// 1. Compter la longueur de la partie numérique (jusqu'à la virgule ou fin)
+	i = 0;
+	while (str[i] && str[i] != ',' && str[i] != '\n')
+		i++;
+	
+	// 2. Allouer une chaîne pour extraire cette partie
+	value_str = malloc(i + 1);
+	if (!value_str)
+		return (0);
+	
+	// 3. Copier la partie numérique
+	i = 0;
+	while (str[i] && str[i] != ',' && str[i] != '\n')
+	{
+		value_str[i] = str[i];
+		i++;
+	}
+	value_str[i] = '\0';
+	
+	// 4. Convertir en entier avec ft_atoi_hex (gère décimal et hexadécimal)
+	result = ft_atoi_hex(value_str);
+	
+	// 5. Libérer la chaîne temporaire
+	free(value_str);
+	
+	return (result);
+}
+```
+
+**Exemples** :
+- `"123"` → `123`
+- `"0xFF"` → `255`
+- `"0xABC"` → `2748`
+- `"-45"` → `-45`
+- `"-0xFF"` → `-255`
+- `"123,0xff00"` → `123` (extrait la partie avant la virgule)
+
+#### `free_split(char **arr)` - Libérer un tableau de chaînes
+
+**Rôle** : Libérer proprement un tableau de chaînes alloué par `ft_split`.
+
+```c
+void	free_split(char **arr)
+{
+	int		i;
+
+	i = 0;
+	while (arr[i])
+	{
+		free(arr[i]);  // Libérer chaque chaîne
+		i++;
+	}
+	free(arr);  // Libérer le tableau
+}
+```
 
 ---
 
@@ -663,12 +828,6 @@ void	project_point(t_point *pt, int z, t_window *win)
 - Après zoom (zoom=10) : (50, 30)
 - Après projection : x_écran = (50-30) * 0.866 = 17.32, y_écran = (50+30) * 0.5 - 50 = -10
 - Après centrage : x_écran = 17.32 + 960 = 977.32, y_écran = -10 + 540 = 530
-
-**Pourquoi `pt` est un pointeur ?**
-
-- On modifie directement les coordonnées du point (passage par référence)
-- Évite de retourner une structure (moins performant)
-- Cohérent avec les autres fonctions de dessin
 
 #### `abs_value(int n)` - Valeur absolue
 
@@ -796,11 +955,6 @@ void	put_pixel(t_window *win, int x, int y, int color)
 - **`x * (win->bits_per_pixel / 8)`** : saute les pixels avant x sur la ligne
 - **`win->bits_per_pixel / 8`** : convertit les bits en octets (32 bits = 4 octets)
 
-**Exemple** :
-- Pixel (x=100, y=50)
-- `line_length = 7680` (1920 pixels × 4 octets)
-- Position = 50 × 7680 + 100 × 4 = 384000 + 400 = 384400
-
 #### `draw_line(t_window *win, t_point *p1, t_point *p2)` - Dessiner une ligne
 
 **Rôle** : Dessiner une ligne entre deux points en choisissant l'algorithme approprié.
@@ -880,58 +1034,11 @@ void	line_horizontal(t_window *win, t_point *p1, t_point *p2)
 }
 ```
 
-**Principe de Bresenham** :
-
-- On utilise une variable `err` qui accumule l'erreur entre la ligne idéale et la ligne discrète
-- Quand `err < 0`, on sait qu'on doit ajuster Y d'un pixel
-- Permet de tracer des lignes droites sans calculs de flottants
-
-**Exemple** :
-- Ligne de (0, 0) à (5, 2)
-- `dx = 5`, `dy = 2`, `dir_y = 1` (monter)
-- `err = 2` (initial)
-- Itérations :
-  1. Pixel (0, 0), err = -1 → monte à (0, 1), err = 4
-  2. Pixel (1, 1), err = 2
-  3. Pixel (2, 1), err = 0
-  4. Pixel (3, 1), err = -2 → monte à (3, 2), err = 3
-  5. Pixel (4, 2), err = 1
-  6. Pixel (5, 2), fin
-
 #### `line_vertical(t_window *win, t_point *p1, t_point *p2)` - Algorithme de Bresenham vertical
 
 **Rôle** : Dessiner une ligne en incrémentant Y pixel par pixel.
 
 **Algorithme** : Identique à `line_horizontal` mais en inversant X et Y.
-
-```c
-void	line_vertical(t_window *win, t_point *p1, t_point *p2)
-{
-	int	dx;
-	int	dy;
-	int	err;
-	int	dir_x;
-
-	dx = abs_value(p2->x - p1->x);
-	dy = abs_value(p2->y - p1->y);
-	dir_x = (p1->x < p2->x);
-	if (dir_x == 0)
-		dir_x = -1;
-	err = dy / 2;
-	
-	while (p1->y <= p2->y)
-	{
-		put_pixel(win, p1->x, p1->y, COLOR_WHITE);
-		err -= dx;  // Inversé par rapport à line_horizontal
-		if (err < 0)
-		{
-			p1->x += dir_x;
-			err += dy;
-		}
-		p1->y++;  // Avancer verticalement
-	}
-}
-```
 
 ---
 
@@ -1010,10 +1117,7 @@ void	calc_zoom(t_window *win)
 	else
 		win->zoom = zoom_y;
 	
-	// 4. Appliquer une marge (100% = pas de marge, ici on ne modifie pas)
-	win->zoom = (win->zoom * 100) / 100;
-	
-	// 5. S'assurer qu'on a au moins un zoom de 1
+	// 4. S'assurer qu'on a au moins un zoom de 1
 	if (win->zoom < 1)
 		win->zoom = 1;
 }
@@ -1041,12 +1145,6 @@ int	key_press(int key, t_window *win)
 	return (0);  // Retourner 0 indique qu'on a géré l'événement
 }
 ```
-
-**Pourquoi un callback ?**
-
-- MinilibX utilise un système d'**hooks** (callbacks)
-- On enregistre cette fonction avec `mlx_hook(win, 2, 1L << 0, key_press, win)`
-- MLX appelle automatiquement cette fonction quand une touche est pressée
 
 #### `close_win(t_window *win)` - Fermer proprement
 
@@ -1084,6 +1182,45 @@ int	close_win(t_window *win)
 }
 ```
 
+#### `free_map(t_map *map)` - Libérer la carte
+
+**Rôle** : Libérer la matrice `z_matrix` et la structure `t_map`.
+
+**Logique** :
+
+```c
+void	free_map(t_map *map)
+{
+	if (!map)
+		return ;
+	clear_zmatrix(map);  // Libère z_matrix
+	free(map);           // Libère la structure
+}
+```
+
+#### `clear_zmatrix(t_map *map)` - Libérer la matrice
+
+**Rôle** : Libérer toutes les lignes de `z_matrix` puis le tableau de pointeurs.
+
+```c
+void	clear_zmatrix(t_map *map)
+{
+	int	i;
+
+	if (!map || !map->z_matrix)
+		return ;
+	i = 0;
+	while (i < map->height)
+	{
+		if (map->z_matrix[i])
+			free(map->z_matrix[i]);  // Libérer chaque ligne
+		i++;
+	}
+	free(map->z_matrix);  // Libérer le tableau de pointeurs
+	map->z_matrix = NULL;
+}
+```
+
 ---
 
 ## 🧠 Principes de MinilibX
@@ -1098,25 +1235,21 @@ MinilibX est une **fine couche d'abstraction** au-dessus de X11 (système de fen
 ### Concepts fondamentaux
 
 #### 1. Connexion MLX (`mlx_init()`)
-
 - Établit une connexion avec le serveur X11
 - Retourne un pointeur `void *mlx` (handle de connexion)
 - **Obligatoire** : toutes les autres fonctions MLX ont besoin de ce pointeur
 
 #### 2. Fenêtre (`mlx_new_window()`)
-
 - Crée une fenêtre graphique sur l'écran
 - Retourne un pointeur `void *win`
 - Paramètres : largeur, hauteur, titre
 
 #### 3. Image (`mlx_new_image()`)
-
 - Crée un **buffer mémoire** pour dessiner
 - Plus rapide que de dessiner directement dans la fenêtre
 - Retourne un pointeur `void *img`
 
 #### 4. Buffer image (`mlx_get_data_addr()`)
-
 - Obtient l'**adresse mémoire brute** du buffer
 - On peut écrire directement dedans (très rapide)
 - Informations fournies :
@@ -1126,12 +1259,10 @@ MinilibX est une **fine couche d'abstraction** au-dessus de X11 (système de fen
   - `endian` : ordre des octets
 
 #### 5. Affichage (`mlx_put_image_to_window()`)
-
 - Copie le buffer image dans la fenêtre
 - À faire **après** avoir dessiné tout ce qu'on veut dans le buffer
 
 #### 6. Hooks (`mlx_hook()`)
-
 - Enregistre des **callbacks** pour les événements
 - Types d'événements :
   - `2` : touche pressée (KeyPress)
@@ -1139,16 +1270,9 @@ MinilibX est une **fine couche d'abstraction** au-dessus de X11 (système de fen
 - MLX appelle automatiquement la fonction callback
 
 #### 7. Boucle (`mlx_loop()`)
-
 - **Bloque** le programme et attend les événements
 - Le programme reste vivant tant que la fenêtre est ouverte
 - Nécessaire pour recevoir les événements
-
-### Pourquoi cette architecture ?
-
-1. **Performance** : Écrire dans un buffer mémoire est beaucoup plus rapide que d'appeler X11 pour chaque pixel
-2. **Double buffering** : On dessine tout d'abord, puis on affiche d'un coup (pas de scintillement)
-3. **Événements asynchrones** : Les callbacks permettent de réagir aux interactions utilisateur
 
 ---
 
@@ -1157,7 +1281,7 @@ MinilibX est une **fine couche d'abstraction** au-dessus de X11 (système de fen
 ```
 1. main()
    │
-   ├─> check_extension()/+ vérifie .fdf
+   ├─> check_extension() → vérifie .fdf
    │
    └─> start_fdf()
        │
@@ -1165,22 +1289,24 @@ MinilibX est une **fine couche d'abstraction** au-dessus de X11 (système de fen
        │
        └─> parse_map()
            │
-           ├─> count_lines() → ouvre fichier, compte lignes, ferme
-           │
-           ├─> get_width()
+           ├─> get_map_dimensions()
            │   ├─> ouvre fichier
-           │   ├─> get_next_line() → première ligne
+           │   ├─> lit ligne par ligne
            │   ├─> count_columns() → compte nombres
+           │   ├─> check_line_width() → valide forme rectangulaire
            │   └─> ferme fichier
            │
-           └─> fill_map()
-               ├─> allocate_matrices() → alloue z_matrix[height][width]
+           ├─> allocate_matrices() → alloue z_matrix[height][width]
+           │
+           └─> read_and_fill_rows()
                ├─> ouvre fichier
                ├─> pour chaque ligne :
                │   ├─> get_next_line()
                │   ├─> process_line()
                │   │   ├─> ft_split() → découpe en nombres
-               │   │   └─> ft_atoi() → convertit et stocke dans z_matrix
+               │   │   ├─> is_valid_integer() → valide format
+               │   │   ├─> parse_fdf_value() → convertit avec ft_atoi_hex
+               │   │   └─> stocke dans z_matrix
                │   └─> free(line)
                └─> ferme fichier
        
@@ -1219,10 +1345,13 @@ MinilibX est une **fine couche d'abstraction** au-dessus de X11 (système de fen
 ✅ Zoom automatique  
 ✅ Gestion ESC et croix  
 ✅ Fenêtre 1920×1080  
-✅ Fichiers organisés (7 fichiers .c)  
+✅ Fichiers organisés (8 fichiers .c)  
 ✅ Norminette OK  
 ✅ Fonctions exposées (pas de `static` inutiles)  
 ✅ Protection fichier `.fdf`  
+✅ Support nombres décimaux et hexadécimaux  
+✅ Validation forme rectangulaire  
+✅ Gestion mémoire propre  
 
 ---
 
@@ -1234,6 +1363,7 @@ make
 
 # Tester une carte
 ./fdf test_maps/42.fdf
+./fdf test_16x16.fdf
 
 # Nettoyer
 make fclean
@@ -1246,11 +1376,34 @@ make fclean
 | Fonction | Usage |
 |----------|-------|
 | `ft_split()` | Découpe ligne en nombres (séparés par ' ') |
-| `ft_atoi()` | Convertit chaîne "10" → entier 10 |
+| `ft_atoi()` | Convertit chaîne "10" → entier 10 (utilisé par ft_atoi_hex pour décimaux) |
+| `ft_atoi_hex()` | Convertit chaîne "0xFF" → entier 255 (dans libft) |
 | `ft_strlen()` | Longueur chaîne |
 | `ft_strncmp()` | Comparaison de chaînes (vérifie extension .fdf) |
 | `get_next_line()` | Lit fichier ligne par ligne |
 | `ft_putstr_fd()` | Écrit messages d'erreur dans stderr (fd=2) |
+
+---
+
+## 🔢 Format des Nombres Acceptés
+
+### Décimaux
+- `123` → 123
+- `-45` → -45
+- `+10` → 10
+- `0` → 0
+
+### Hexadécimaux
+- `0xFF` → 255
+- `0xff` → 255 (minuscules acceptées)
+- `0xABC` → 2748
+- `0x10` → 16
+- `-0xFF` → -255 (négatif accepté)
+
+### Rejetés
+- `12.5` → ❌ (floats non supportés)
+- `123,0xff` → ❌ (virgule = format couleur, non supporté)
+- `0x` → ❌ (pas de chiffres après 0x)
 
 ---
 

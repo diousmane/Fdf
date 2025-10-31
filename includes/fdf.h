@@ -63,9 +63,9 @@ typedef struct s_point
 ** Parsing
 */
 int			parse_map(char *filename, t_map *map);
-int			count_lines(char *filename);
 int			count_columns(char *line);
-int			fill_map(char *filename, t_map *map);
+int			check_line_width(char *line, int expected_width);
+int			get_map_dimensions(char *filename, t_map *map);
 int			process_line(char *line, t_map *map, int y);
 int			allocate_matrices(t_map *map);
 void		draw_connections(t_window *win, t_point *p1, int x, int y);
@@ -74,6 +74,9 @@ void		draw_connections(t_window *win, t_point *p1, int x, int y);
 ** Parsing utils (validation)
 */
 int			is_valid_integer(char *str);
+int			is_hex_digit(char c);
+int			validate_value_digits(char *str, int *i, int is_hex);
+int			parse_fdf_value(char *str);
 void		free_split(char **arr);
 int			read_and_fill_rows(int fd, t_map *map);
 
@@ -105,7 +108,6 @@ int			close_win(t_window *win);
 */
 void		free_map(t_map *map);
 void		clear_zmatrix(t_map *map);
-int			get_width(char *filename, t_map *map);
 
 /*
 ** Main
